@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lineups Brimstone</title>
+<style>
+  :root {
+    --bg: #0b0a10;
+    --panel: rgba(14, 12, 22, .82);
+    --line: #2f2b3d;
+    --text: #f4f1e6;
+    --muted: #a19db5;
+    --accent: #fcee0a;
+    --cyan: #02d7f2;
+    --red: #ff003c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg) url("images/brimstone.jpg") center top / cover fixed no-repeat;
+    color: var(--text);
+    font-family: "Bahnschrift", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.4;
+  }
+  /* Voile sombre + lueurs néon par-dessus l'image de fond */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(circle at 85% 0%, rgba(255, 0, 60, .28), transparent 50%),
+      radial-gradient(circle at 0% 100%, rgba(2, 215, 242, .20), transparent 45%),
+      linear-gradient(180deg, rgba(11, 10, 16, .55), rgba(11, 10, 16, .92));
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 2rem; margin: 0 0 4px; color: var(--accent); letter-spacing: .02em; }
+  h2 { font-size: 1.3rem; margin: 32px 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+
+  /* Liste des maps */
+  .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .maps button {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 0;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+    padding: 18px 12px; font: inherit; font-size: 1.1rem; cursor: pointer; text-align: left;
+  }
+  .maps button:hover { background: var(--accent); color: #0b0a10; border-color: var(--accent); }
+
+  /* Page d'une map */
+  .back {
+    background: none; border: 0; color: var(--cyan);
+    font: inherit; cursor: pointer; padding: 0; margin-bottom: 8px;
+  }
+  .site-title { display: flex; align-items: center; gap: 12px; margin: 36px 0 12px; }
+  .site-title span {
+    background: var(--accent); color: #0b0a10; font-weight: 700; font-size: 1.4rem;
+    width: 44px; height: 44px; display: grid; place-items: center;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  }
+  .site-title h2 { margin: 0; }
+  .site-title { border-bottom: 1px solid var(--red); padding-bottom: 10px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--cyan); overflow: hidden; }
+  figcaption { padding: 8px 12px; color: var(--muted); font-size: .9rem; }
+  .shot { aspect-ratio: 16 / 9; background: #121010; display: grid; place-items: center; }
+  .shot img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; display: block; }
+  .shot .empty { color: var(--muted); font-size: .85rem; padding: 8px; text-align: center; }
+  @media (max-width: 640px) { .pair { grid-template-columns: 1fr; } }
+
+  /* Zoom */
+  #zoom {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, .9);
+    display: none; place-items: center; padding: 16px; cursor: zoom-out; z-index: 10;
+  }
+  #zoom.open { display: grid; }
+  #zoom img { max-width: 100%; max-height: 100%; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="zoom"><img alt=""></div>
+
+<script>
+/* ---------------------------------------------------------------
+   À MODIFIER : la liste des maps et leurs sites.
+   Les images vont dans  images/<id>/<site>-position.jpg
+                         images/<id>/<site>-lineup.jpg
+   Exemple : images/ascent/a-position.jpg et images/ascent/a-lineup.jpg
+---------------------------------------------------------------- */
+const MAPS = [
+  { id: "abyss",    name: "Abyss",    sites: ["A", "B"] },
+  { id: "ascent",   name: "Ascent",   sites: ["A", "B"] },
+  { id: "bind",     name: "Bind",     sites: ["A", "B"] },
+  { id: "breeze",   name: "Breeze",   sites: ["A", "B"] },
+  { id: "corrode",  name: "Corrode",  sites: ["A", "B"] },
+  { id: "fracture", name: "Fracture", sites: ["A", "B"] },
+  { id: "haven",    name: "Haven",    sites: ["A", "B", "C"] },
+  { id: "icebox",   name: "Icebox",   sites: ["A", "B"] },
+  { id: "lotus",    name: "Lotus",    sites: ["A", "B", "C"] },
+  { id: "pearl",    name: "Pearl",    sites: ["A", "B"] },
+  { id: "split",    name: "Split",    sites: ["A", "B"] },
+  { id: "summit",   name: "Summit",   sites: ["A", "B"] },
+  { id: "sunset",   name: "Sunset",   sites: ["A", "B"] }
+];
+
+const app = document.getElementById("app");
+const zoom = document.getElementById("zoom");
+
+function shot(mapId, site, kind, label) {
+  const base = `images/${mapId}/${site.toLowerCase()}-${kind}`;
+  return `
+    <figure>
+      <div class="shot">
+        <img src="${base}.jpg" alt="${label}"
+             onerror="fallback(this, '${base}')">
+      </div>
+      <figcaption>${label}</figcaption>
+    </figure>`;
+}
+
+/* Essaie .png si le .jpg n'existe pas, sinon affiche un message */
+function fallback(img, base) {
+  if (!img.dataset.tried) {
+    img.dataset.tried = "1";
+    img.src = base + ".png";
+    return;
+  }
+  img.parentElement.innerHTML = `<div class="empty">Image manquante<br>${base}.jpg</div>`;
+}
+
+function renderList() {
+  document.title = "Lineups Brimstone";
+  app.innerHTML = `
+    <h1>Lineups Brimstone</h1>
+    <p class="sub">Choisis une map.</p>
+    <div class="maps">
+      ${MAPS.map(m => `<button onclick="location.hash='${m.id}'">${m.name}</button>`).join("")}
+    </div>`;
+}
+
+function renderMap(map) {
+  document.title = `${map.name} – Lineups Brimstone`;
+  app.innerHTML = `
+    <button class="back" onclick="location.hash=''">‹ Toutes les maps</button>
+    <h1>${map.name}</h1>
+    ${map.sites.map(s => `
+      <section>
+        <div class="site-title"><span>${s}</span><h2>Site ${s}</h2></div>
+        <div class="pair">
+          ${shot(map.id, s, "position", "Position de Brimstone")}
+          ${shot(map.id, s, "lineup", "Lineup")}
+        </div>
+      </section>`).join("")}`;
+  window.scrollTo(0, 0);
+}
+
+function route() {
+  const id = location.hash.slice(1);
+  const map = MAPS.find(m => m.id === id);
+  map ? renderMap(map) : renderList();
+}
+
+/* Zoom au clic sur une image */
+app.addEventListener("click", e => {
+  if (e.target.tagName === "IMG") {
+    zoom.querySelector("img").src = e.target.src;
+    zoom.classList.add("open");
+  }
+});
+zoom.addEventListener("click", () => zoom.classList.remove("open"));
+document.addEventListener("keydown", e => { if (e.key === "Escape") zoom.classList.remove("open"); });
+
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
